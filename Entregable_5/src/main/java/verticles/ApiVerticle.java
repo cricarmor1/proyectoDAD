@@ -36,6 +36,8 @@ public class ApiVerticle extends AbstractVerticle
 	private MySQLPool mySQLPool;
 	
 	public void start(Promise<Void> startFuture) {
+		
+		
 		MySQLConnectOptions mySQLConnectOptions = new MySQLConnectOptions().setPort(3306).setHost("localhost")
 				.setDatabase("bd_proyecto").setUser("root").setPassword("root");
 		
@@ -72,7 +74,14 @@ public class ApiVerticle extends AbstractVerticle
 		router.post("/api/Actuador/add").handler(this::addActuador);
 		
 		router.get("/api/Grupo/:id_Grupo").handler(this::getGrupoByID);
+		router.get("/api/Grupo/all/:placeholder").handler(this::getGrupoAll);
 		router.post("/api/Grupo/add").handler(this::addGrupo);
+		router.put("/api/Grupo/update/:mqtt_ch").handler(this::updateGrupoByMqtt);
+		router.get("/api/Grupo/mqtt/:mqtt_ch").handler(this::getGrupoByMqtt);
+		router.get("/api/Grupo/lasttemp/:mqtt_ch/:timestamp").handler(this::getLastTempByMqttTimestamp);
+		router.get("/api/Grupo/lasthum/:mqtt_ch/:timestamp").handler(this::getLastHumByMqttTimestamp);
+		router.get("/api/Grupo/lasttemp/:mqtt_ch").handler(this::getLastTempByMqtt);
+		router.get("/api/Grupo/lasthum/:mqtt_ch").handler(this::getLastHumByMqtt);
 		
 		router.get("/api/Placa/:id_Placa").handler(this::getPlacaByID);
 		router.post("/api/Placa/add").handler(this::addPlaca);
@@ -88,6 +97,7 @@ public class ApiVerticle extends AbstractVerticle
 		router.get("/api/ValorTemp/:id_SensorTemp").handler(this::getValorTempBySensorTempID);
 		router.get("/api/ValorTemp/last/:id_SensorTemp").handler(this::getLastValorTempBySensorTempID);
 		router.post("/api/ValorTemp/add").handler(this::addValorTemp);
+		vertx.deployVerticle(MqttVerticle.class.getName());
 	}
 
 	private void getSensorTempByID(RoutingContext routingContext) {
@@ -248,6 +258,7 @@ public class ApiVerticle extends AbstractVerticle
 				});
 	}
 	
+	
 	private void addActuador(RoutingContext routingContext) {
 		Actuador actuador = gson.fromJson(routingContext.getBodyAsString(), Actuador.class);
 		//System.out.println(routingContext.get("id_SensorTemp") );
@@ -267,13 +278,57 @@ public class ApiVerticle extends AbstractVerticle
 	private void getGrupoByID(RoutingContext routingContext) {
 		mySQLPool.query("SELECT * FROM Grupo WHERE id_Grupo = '" + routingContext.request().getParam("id_Grupo") + "'")
 		.execute().onComplete(res -> {
+				if (res.succeeded()) {
+					System.out.println(res.result().size());
+					RowSet<Row> resultSet = res.result();
+					JsonArray result = new JsonArray();
+					
+					for (Row row : resultSet) {
+						result.add(JsonObject.mapFrom(new Grupo(row.getInteger("id_Grupo"),
+								row.getString("mqtt_ch"), row.getLong("timestampTemp"), row.getLong("timestampHum"))));
+						
+					}
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+					.end(result.encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
+				}
+			});
+	}
+	
+	private void getGrupoAll(RoutingContext routingContext) {
+		mySQLPool.query("SELECT * FROM Grupo")
+		.execute().onComplete(res -> {
+				if (res.succeeded()) {	
+					System.out.println(res.result().size());
+					RowSet<Row> resultSet = res.result();
+					JsonArray result = new JsonArray();
+					
+					for (Row row : resultSet) {
+						result.add(JsonObject.mapFrom(new Grupo(row.getInteger("id_Grupo"),
+								row.getString("mqtt_ch"), row.getLong("timestampTemp"), row.getLong("timestampHum"))));
+						
+					}
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+					.end(result.encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
+				}
+			});
+	}
+	
+	private void getGrupoByMqtt(RoutingContext routingContext) {
+		mySQLPool.query("SELECT * FROM Grupo WHERE mqtt_ch = '" + routingContext.request().getParam("mqtt_ch") + "'")
+		.execute().onComplete(res -> {
 				if (res.succeeded()) {	
 					RowSet<Row> resultSet = res.result();
 					JsonArray result = new JsonArray();
 					
 					for (Row row : resultSet) {
 						result.add(JsonObject.mapFrom(new Grupo(row.getInteger("id_Grupo"),
-								row.getInteger("mqtt_ch"))));
+								row.getString("mqtt_ch"), row.getLong("timestampTemp"), row.getLong("timestampHum"))));
 						
 					}
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
@@ -288,7 +343,7 @@ public class ApiVerticle extends AbstractVerticle
 	private void addGrupo(RoutingContext routingContext) {
 		Grupo grupo = gson.fromJson(routingContext.getBodyAsString(), Grupo.class);
 		//System.out.println(routingContext.get("id_SensorTemp") );
-		mySQLPool.query("INSERT INTO Grupo VALUES ("+ String.valueOf(grupo.getId_Grupo())+"," + String.valueOf(grupo.getMqtt_ch()) +")").
+		mySQLPool.query("INSERT INTO Grupo VALUES ("+ String.valueOf(grupo.getId_Grupo())+"," + String.valueOf(grupo.getMqtt_ch())+",null,null" +")").
 		execute().onComplete(res -> {
 			if (res.succeeded()) {
 				routingContext.response().putHeader("content-type", "application/json; charset=utf-8").setStatusCode(200)
@@ -301,6 +356,117 @@ public class ApiVerticle extends AbstractVerticle
 			});
 	}
 	
+	private void updateGrupoByMqtt(RoutingContext routingContext) {
+		Grupo grupo = gson.fromJson(routingContext.getBodyAsString(), Grupo.class);
+		mySQLPool.query("UPDATE Grupo SET id_Grupo = '"+grupo.getId_Grupo()+ "', mqtt_ch = '" + grupo.getMqtt_ch()+"', timestampTemp = "
+		+grupo.getTimestampTemp()+", timestampHum = " +grupo.getTimestampHum()+" WHERE mqtt_ch = '"
+	+ routingContext.request().getParam("mqtt_ch") + "'")
+		.execute().onComplete(res -> {
+				if (res.succeeded()) {	
+					
+					routingContext.response().putHeader("content-type", "application/json; charset=utf-8").setStatusCode(200)
+					.end(gson.toJson(grupo));;
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
+				}
+			});
+	}
+	private void getLastTempByMqttTimestamp(RoutingContext routingContext) {
+		mySQLPool.query("SELECT id_ValorTemp, ValorTemp.id_SensorTemp, valorTemp, timestamp FROM ValorTemp LEFT JOIN SensorTemp ON ValorTemp.id_SensorTemp = SensorTemp.id_SensorTemp"
+				+ " LEFT JOIN Placa ON SensorTemp.id_Placa = Placa.id_Placa "
+				+ "WHERE (mqtt_ch = '" + routingContext.request().getParam("mqtt_ch") + "') AND (timestamp = '"+routingContext.request().getParam("timestamp")+"')")
+		.execute().onComplete(res -> {
+				if (res.succeeded()) {	
+					RowSet<Row> resultSet = res.result();
+					JsonArray result = new JsonArray();
+					
+					for (Row row : resultSet) {
+						result.add(JsonObject.mapFrom(new ValorTemp(row.getInteger("id_ValorTemp"),
+								row.getInteger("id_SensorTemp"), row.getFloat("valorTemp"), row.getLong("timestamp"))));
+						
+					}
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+					.end(result.encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
+				}
+			});
+	}
+	
+	private void getLastTempByMqtt(RoutingContext routingContext) {
+		mySQLPool.query("SELECT id_ValorTemp, ValorTemp.id_SensorTemp, valorTemp, timestamp FROM ValorTemp LEFT JOIN SensorTemp ON ValorTemp.id_SensorTemp = SensorTemp.id_SensorTemp"
+				+ " LEFT JOIN Placa ON SensorTemp.id_Placa = Placa.id_Placa "
+				+ "WHERE mqtt_ch = '" + routingContext.request().getParam("mqtt_ch") + "' ORDER BY timestamp DESC LIMIT 1")
+		.execute().onComplete(res -> {
+				if (res.succeeded()) {	
+					RowSet<Row> resultSet = res.result();
+					JsonArray result = new JsonArray();
+					
+					for (Row row : resultSet) {
+						result.add(JsonObject.mapFrom(new ValorTemp(row.getInteger("id_ValorTemp"),
+								row.getInteger("id_SensorTemp"), row.getFloat("valorTemp"), row.getLong("timestamp"))));
+						
+					}
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+					.end(result.encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
+				}
+			});
+	}
+	
+	
+	private void getLastHumByMqttTimestamp(RoutingContext routingContext) {
+		mySQLPool.query("SELECT id_ValorHumedad, ValorHumedad.id_SensorHumedad, valorHumedad, timestamp FROM ValorHumedad LEFT JOIN SensorHumedad ON ValorHumedad.id_SensorHumedad = SensorHumedad.id_SensorHumedad"
+				+ " LEFT JOIN Placa ON SensorHumedad.id_Placa = Placa.id_Placa "
+				+ "WHERE (mqtt_ch = '" + routingContext.request().getParam("mqtt_ch") + "') AND (timestamp = '"+routingContext.request().getParam("timestamp")+"')")
+		.execute().onComplete(res -> {
+				if (res.succeeded()) {	
+					RowSet<Row> resultSet = res.result();
+					JsonArray result = new JsonArray();
+					
+					for (Row row : resultSet) {
+						result.add(JsonObject.mapFrom(new ValorHumedad(row.getInteger("id_ValorHumedad"),
+								row.getInteger("id_SensorHumedad"), row.getFloat("valorHumedad"), row.getLong("timestamp"))));
+						
+					}
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+					.end(result.encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
+				}
+			});
+	}
+	
+	private void getLastHumByMqtt(RoutingContext routingContext) {
+		mySQLPool.query("SELECT id_ValorHumedad, ValorHumedad.id_SensorHumedad, valorHumedad, timestamp FROM ValorHumedad LEFT JOIN SensorHumedad ON ValorHumedad.id_SensorHumedad = SensorHumedad.id_SensorHumedad"
+				+ " LEFT JOIN Placa ON SensorHumedad.id_Placa = Placa.id_Placa "
+				+ "WHERE mqtt_ch = '" + routingContext.request().getParam("mqtt_ch") + "' ORDER BY timestamp DESC LIMIT 1 ")
+		.execute().onComplete(res -> {
+				if (res.succeeded()) {	
+					RowSet<Row> resultSet = res.result();
+					JsonArray result = new JsonArray();
+					
+					for (Row row : resultSet) {
+						result.add(JsonObject.mapFrom(new ValorHumedad(row.getInteger("id_ValorHumedad"),
+								row.getInteger("id_SensorHumedad"), row.getFloat("valorHumedad"), row.getLong("timestamp"))));
+						
+					}
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+					.end(result.encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
+				}
+			});
+	}
+	
+
+	
 	private void getPlacaByID(RoutingContext routingContext) {
 		mySQLPool.query("SELECT * FROM Placa WHERE id_Placa = '" + routingContext.request().getParam("id_Placa") + "'")
 		.execute().onComplete(res -> {
@@ -310,7 +476,7 @@ public class ApiVerticle extends AbstractVerticle
 					
 					for (Row row : resultSet) {
 						result.add(JsonObject.mapFrom(new Placa(row.getInteger("id_Placa"),
-								row.getInteger("id_Grupo"), row.getInteger("mqtt_ch"))));
+								row.getInteger("id_Grupo"), row.getString("mqtt_ch"))));
 						
 					}
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
