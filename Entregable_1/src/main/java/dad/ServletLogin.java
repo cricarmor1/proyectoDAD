@@ -3,6 +3,7 @@ package dad;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,6 +23,7 @@ public class ServletLogin extends HttpServlet {
 	private Map<Integer, SensorTemp> memoria;
 
 	public void init() throws ServletException {
+		
 		SensorTemp sensor = new SensorTemp(1,100);
 		memoria = new HashMap<Integer, SensorTemp>();
 		memoria.put(1, sensor);
@@ -30,13 +32,21 @@ public class ServletLogin extends HttpServlet {
 
 	@Override
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+		if(req.getParameter("id_SensorTemp") == null) {
+			resp.setContentType("text/html");
+			String message2 = "Para usarme tienes que indicar id_SensorTemp como parámetro o bien realizar un Post";
+			PrintWriter out = resp.getWriter();
+			out.println("<body><h1>" + message2 + "</h1></body>");
+		}
+		else {
 		Integer id_SensorTemp = Integer.parseInt(req.getParameter("id_SensorTemp"));
 		Gson gson = new Gson();
 		if (memoria.containsKey(id_SensorTemp)) {
 			resp.getWriter().println(gson.toJson(memoria.get(id_SensorTemp)));
 			resp.setStatus(201);
 		} else {
-			response(resp, "invalid login");
+			response(resp, "invalid id");
+		}
 		}
 	}
 	
