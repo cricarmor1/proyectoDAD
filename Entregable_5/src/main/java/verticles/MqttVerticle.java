@@ -62,11 +62,11 @@ public class MqttVerticle extends AbstractVerticle {
 							handleTemp(grupo,mqttClient);
 						}
 					}
-					else if(tipo.equals("humedad")) {
+					/*else if(tipo.equals("humedad")) {
 						if(handler.payload().toString().equals("NuevaHum")) {
 							System.out.println("HUMEDAD CORRECTO");
 						}
-					}
+					}*/
 				
 				}
 				

@@ -1,0 +1,111 @@
+
+
+
+DROP DATABASE IF EXISTS BD_PROYECTO;
+CREATE DATABASE IF NOT EXISTS BD_PROYECTO;
+
+USE BD_PROYECTO;
+
+DROP TABLE IF EXISTS Grupo;
+
+CREATE TABLE IF NOT EXISTS Grupo (
+  id_Grupo INT NOT NULL AUTO_INCREMENT,
+  mqtt_ch nvarchar(100) NOT NULL UNIQUE,
+  timestampTemp bigint DEFAULT NULL,
+  timestampHum bigint DEFAULT NULL,
+  PRIMARY KEY (id_Grupo)
+);
+LOCK TABLES Grupo WRITE;
+INSERT INTO Grupo VALUES (1,2, 3000, 3000),(2,3, NULL, NULL),(3,'hola', NULL, NULL);
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS Placa;
+CREATE TABLE IF NOT EXISTS Placa (
+  id_Placa INT NOT NULL AUTO_INCREMENT,
+  id_Grupo INT,
+  mqtt_ch nvarchar(100) NOT NULL UNIQUE,
+  PRIMARY KEY (id_Placa),
+  FOREIGN KEY(id_Grupo) REFERENCES Grupo (id_Grupo)
+);
+
+LOCK TABLES Placa WRITE;
+INSERT INTO Placa VALUES (1,1,2),(2,2,3),(3,3,'hola');
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS SensorTemp;
+CREATE TABLE IF NOT EXISTS SensorTemp (
+  id_SensorTemp INT NOT NULL AUTO_INCREMENT,
+  id_Placa INT NOT NULL,
+  PRIMARY KEY (id_SensorTemp),
+  FOREIGN KEY(id_Placa) REFERENCES Placa (id_Placa)
+);
+
+LOCK TABLES SensorTemp WRITE;
+INSERT INTO SensorTemp VALUES (1,1),(200,1),(2,3);
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS SensorHumedad;
+CREATE TABLE IF NOT EXISTS SensorHumedad (
+  id_SensorHumedad INT NOT NULL AUTO_INCREMENT,
+  id_Placa INT NOT NULL,
+  PRIMARY KEY (id_SensorHumedad),
+  FOREIGN KEY(id_Placa) REFERENCES Placa (id_Placa)
+);
+
+LOCK TABLES SensorHumedad WRITE;
+INSERT INTO SensorHumedad VALUES (1000,1),(2000,1),(3000,3);
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS ValorTemp;
+CREATE TABLE IF NOT EXISTS ValorTemp (
+  id_ValorTemp INT NOT NULL AUTO_INCREMENT,
+  id_SensorTemp INT NOT NULL,
+  valorTemp FLOAT NOT NULL,
+  timestamp bigint NOT NULL,
+  PRIMARY KEY (id_ValorTemp),
+  FOREIGN KEY(id_SensorTemp) REFERENCES SensorTemp (id_SensorTemp)
+);
+
+LOCK TABLES ValorTemp WRITE;
+INSERT INTO ValorTemp VALUES (1,1,27,100),(2,1,28,150),(3,1,29,200),(4,2,50,100),(5,2,100,200);
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS ValorHumedad;
+CREATE TABLE IF NOT EXISTS ValorHumedad (
+  id_valorHumedad INT NOT NULL AUTO_INCREMENT,
+  id_SensorHumedad INT NOT NULL,
+  valorHumedad FLOAT NOT NULL,
+  timestamp bigint NOT NULL,
+  PRIMARY KEY (id_valorHumedad),
+  FOREIGN KEY(id_SensorHumedad) REFERENCES SensorHumedad (id_SensorHumedad)
+);
+
+LOCK TABLES ValorHumedad WRITE;
+INSERT INTO ValorHumedad VALUES (1,1000,5,100),(2,1000,4,150),(3,1000,6,200),(4,2000,8,100),(5,2000,9,200);
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS Actuador;
+CREATE TABLE IF NOT EXISTS Actuador (
+  id_Actuador INT NOT NULL AUTO_INCREMENT,
+  id_Placa INT NOT NULL,
+  PRIMARY KEY (id_Actuador),
+  FOREIGN KEY(id_Placa) REFERENCES Placa (id_Placa)
+);
+
+LOCK TABLES Actuador WRITE;
+INSERT INTO Actuador VALUES (1000,1),(2000,1),(3000,3);
+UNLOCK TABLES;
+
+DROP TABLE IF EXISTS EstadoActuador;
+CREATE TABLE IF NOT EXISTS EstadoActuador (
+  id_EstadoActuador INT NOT NULL AUTO_INCREMENT,
+  id_Actuador INT NOT NULL,
+  estado FLOAT NOT NULL,
+  timestamp bigint NOT NULL,
+  PRIMARY KEY (id_EstadoActuador),
+  FOREIGN KEY(id_Actuador) REFERENCES Actuador (id_Actuador)
+);
+
+LOCK TABLES EstadoActuador WRITE;
+INSERT INTO EstadoActuador VALUES (1,1000,5,100),(2,1000,4,150),(3,1000,6,200),(4,2000,8,100),(5,2000,9,200);
+UNLOCK TABLES;
